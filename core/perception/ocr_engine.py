@@ -1,3 +1,4 @@
+from pandas.core.indexers.utils import length_of_indexer
 import pytesseract
 import numpy as np
 from PIL import Image
@@ -35,7 +36,7 @@ class OCREngine:
         
 
 
-    def extract_physical_text_with_boxes(self,array:np.ndarray,min_con:int=70)  :
+    def extract_physical_text_with_boxes(self,array:np.ndarray,min_con:int=-1)  :
         
         valid=self.validate_frame(array)
         if not valid :
@@ -63,12 +64,23 @@ class OCREngine:
     
 
 
-            if data["conf"][i]>=min_con and text=="" :
+            if data["conf"][i]<=min_con and text=="" :
                 continue
             try :
                 conf=float(data["conf"][i])
             except ValueError:#to prevent lines and words..cf level=-1
                 continue
+            if not re.search(r"[A-Za-z0-9]", text):
+                continue
+            if len(text) <= 2 and conf < 75:
+                continue
+            if conf<25 :
+                continue
+
+    
+
+            
+    
            
 
 

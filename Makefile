@@ -10,7 +10,7 @@ DOCKER_COMPOSE = docker-compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev test test-unit test-integration coverage lint format docs models health docker-up docker-down clean
+.PHONY: help install dev test test-unit test-integration coverage lint format docs models health docker-up docker-down eval eval-baseline install clean
 
 # Default target: show help
 help:
@@ -82,7 +82,34 @@ docker-up:
 docker-down:
 	$(DOCKER_COMPOSE) down
 
-# Clean up temporary files
+
+RESULTS_DIR = research/results
+
+# Ensure results directory exists
+$(RESULTS_DIR):
+	python -c "import os; os.makedirs('$(RESULTS_DIR)', exist_ok=True)"
+
+eval: $(RESULTS_DIR)
+	python -m research.eval.evaluator \
+		--dataset research/eval/eval_dataset.json \
+		--output $(RESULTS_DIR)/eval_report.json
+
+eval-compare: $(RESULTS_DIR)
+	python -m research.eval.compare_baselines \
+		--dataset research/eval/eval_dataset.json \
+		--output $(RESULTS_DIR)/baseline_report.json
+
+eval-full: $(RESULTS_DIR)
+	python -m research.eval.evaluator \
+		--dataset research/eval/eval_dataset.json \
+		--output $(RESULTS_DIR)/eval_report.json
+
+	python -m research.eval.compare_baselines \
+		--dataset research/eval/eval_dataset.json \
+		--output $(RESULTS_DIR)/baseline_report.json
+
+
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	rm -rf .pytest_cache htmlcov/ logs/
+	rm -rf $(RESULTS_DIR)

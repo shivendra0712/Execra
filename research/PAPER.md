@@ -119,23 +119,125 @@ Binary classification metrics on the trigger decision (`should_trigger_guidance`
 
 ---
 
-## 4. Baselines
+## 4 Methodology
 
-### 4.1 No-Guidance Baseline (`no_guidance`)
+### 4.1 Overview
+
+We evaluate Execra using a controlled offline evaluation pipeline that simulates real-time code guidance across labeled scenarios. The evaluation process consists of four sequential stages: scenario ingestion, guidance generation, trigger decisioning, and metric aggregation.
+
+### 4.2 Scenario Ingestion
+
+Each evaluation run begins by loading the dataset (eval_dataset.json), where each sample contains:
+
+- a code snippet
+- a ground-truth label indicating whether guidance should be triggered
+- a human-authored expected guidance description
+- a reference fix for correctness validation
+
+This dataset is treated as a deterministic evaluation corpus, ensuring reproducibility across all baselines.
+
+### 4.3 Guidance Generation Layer
+
+For each scenario, a system under evaluation (Execra or a baseline) produces:
+
+- actual_guidance: textual explanation of detected issues
+- confidence_score: system-estimated confidence (0–1)
+- latency_ms: simulated or measured inference time
+
+Execra uses a heuristic rule-based detection engine combined with a trust-scoring layer, while baselines vary from:
+
+- deterministic abstention (no-guidance)
+- stochastic rule selection (random rules)
+- degraded heuristic LLM simulation (single-LLM baseline)
+
+### 4.4 Trigger Decisioning (Binary Classification Layer)
+
+The system converts raw outputs into a binary decision:
+
+```python
+triggered_guidance = (actual_guidance != "No issues detected")
+```
+This forms a classification problem where:
+
+**Positive class** → guidance should be triggered
+**Negative class** → no issues in code
+
+This enables computation of Precision, Recall, and F1-score over execution behavior.
+
+### 4.5 Semantic Correctness Filtering
+
+Not all triggered outputs are considered valid. A secondary filter evaluates whether the guidance is semantically aligned with ground truth:
+
+```python
+is_correct_guidance =
+    should_trigger_guidance
+    and triggered_guidance
+    and instruction_accuracy ≥ τ
+```
+where:
+
+τ = 0.4 (semantic similarity threshold)
+
+This ensures systems are not rewarded for triggering irrelevant or noisy guidance.
+
+### 4.6 Calibration Measurement
+
+Confidence calibration is evaluated using Expected Calibration Error (ECE).
+
+Predictions are grouped into confidence bins, and the gap between predicted confidence and empirical correctness is computed:
+
+Confidence represents model-estimated certainty, while accuracy reflects empirical correctness of guidance decisions.
+
+This measures whether the system is well-calibrated or over/under-confident, which is critical in developer-facing safety tools.
+
+### 4.7 Aggregation Across Scenarios
+
+After processing all scenarios, metrics are aggregated across the full dataset:
+
+- Mean Instruction Accuracy
+- False Positive Rate (computed only on correct-code subset)
+- P95 latency (tail performance)
+- Precision / Recall / F1 on valid guidance events
+- Expected Calibration Error (ECE)
+
+This produces a unified evaluation report (EvalReport) and enables direct comparison across all baselines.
+
+### 4.8 Baseline Evaluation Protocol
+
+All baselines are evaluated under identical conditions:
+
+- same dataset
+- same evaluation pipeline
+- same metric computation logic
+
+This ensures fair comparison without metric leakage or evaluation bias.
+
+Baselines differ only in the guidance generation function:
+
+- No-guidance → always abstains
+- Random rules → stochastic rule firing
+- Single LLM → heuristic engine without trust calibration
+- Execra → full system with trust-scoring layer
+
+---
+
+## 5. Baselines
+
+### 5.1 No-Guidance Baseline (`no_guidance`)
 
 Always returns `"No issues detected"`. Establishes a floor: FPR = 0 by definition, but recall = 0.
 
-### 4.2 Random Rule Selection (`random_rules`)
+### 5.2 Random Rule Selection (`random_rules`)
 
 At each call, randomly selects one rule from a fixed library of 15 common rules. Represents a naïve, non-contextual detector. Always triggers, so FPR ≈ 1.0.
 
-### 4.3 Single LLM Without Trust Scoring (`single_llm`)
+### 5.3 Single LLM Without Trust Scoring (`single_llm`)
 
 Uses the same heuristic detection engine as Execra but without the trust-score weighting layer. Introduces 30% issue-drop noise and 20% spurious-issue injection to model reduced calibration. Latency is increased by 80–200 ms to reflect the missing routing optimisation.
 
 ---
 
-## 5. Results
+## 6. Results
 
 > **Note:** Results below are from the **simulated evaluation harness** (no live LLM API required). Replace `_simulate_guidance` in `evaluator.py` with a real Execra engine call to produce live results.
 
@@ -148,7 +250,7 @@ Uses the same heuristic detection engine as Execra but without the trust-score w
 
 We additionally report calibration error (ECE) to capture probabilistic reliability of guidance confidence, which is critical in safety-sensitive developer tooling.
 
-### 5.1 Key Findings
+### 6.1 Key Findings
 
 **Execra achieves a precision of 0.4545 with zero false positives.** The system is highly conservative: it avoids triggering on correct code entirely, resulting in FPR = 0.0000, compared to noisy baselines like random rules (FPR = 1.0). However, this conservatism reduces recall (0.1220), indicating that many real issues are not being detected under the current heuristic simulation. This highlights a key trade-off between trust safety and detection coverage.
 
@@ -159,20 +261,20 @@ We additionally report calibration error (ECE) to capture probabilistic reliabil
 **Single LLM baseline performs worse than Execra in both accuracy and stability.**The single-LLM system achieves F1 = 0.0984, significantly lower than Execra (0.1924), and also exhibits higher calibration error (ECE = 0.4728 vs 0.4198). It is also substantially slower (P95 = 408.5 ms vs 242.2 ms), confirming that Execra’s structured trust-scoring and filtering pipeline improves both efficiency and reliability.
 ---
 
-## 6. Discussion
+## 7. Discussion
 
-### 6.1 Limitations
+### 7.1 Limitations
 
 - **Dataset size:** 50 scenarios is sufficient for a first evaluation but too small for confident statistical conclusions. A production evaluation should target 500+ scenarios with multiple annotators and inter-annotator agreement scores.
 - **Python-heavy:** All scenarios are of Python.
 - **Simulated engine:** The default evaluator uses a heuristic simulator, not the live Execra pipeline. Production results may differ.
 
-### 6.2 Threat to Validity
+### 7.2 Threat to Validity
 
 - **Construct validity:** ECE assumes confidence scores are well-defined probabilities. Execra's trust scores are composites of multiple signals; their probabilistic interpretation requires validation.
 - **Internal validity:** The simulated engine is designed to be roughly representative, not identical, to the real pipeline.
 
-### 6.3 Future Work
+### 7.3 Future Work
 
 1. **Embedding-based IA** using Sentence-BERT or OpenAI embeddings for semantic similarity scoring.
 2. **Multi-annotator labelling** with Cohen's κ to measure label quality.
@@ -182,29 +284,23 @@ We additionally report calibration error (ECE) to capture probabilistic reliabil
 
 ---
 
-## 7. Reproducing the Evaluation
+## 8. Reproducing the Evaluation
 
+### No external dependencies required for core evaluation
+### Note: Make is required to run evaluation commands
 ```bash
-# Install dependencies
-make install
-
 # Run the full evaluation suite
 make eval-full
 
 # Or run individual steps:
 make eval          # Execra evaluator only -> research/eval/eval_report.json
-make eval-compare  # Baseline comparison  -> research/eval/baseline_results.json
+make eval-compare  # Baseline comparison  -> research/eval/baseline_report.json
 ```
 
-Custom dataset or output path:
-
-```bash
-make eval DATASET=my_dataset.json EVAL_OUT=my_report.json
-```
 
 ---
 
-## 8. Appendix: Metric Formulas
+## 9. Appendix: Metric Formulas
 
 | Metric | Formula |
 |--------|---------|

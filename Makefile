@@ -10,7 +10,7 @@ DOCKER_COMPOSE = docker-compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev test test-unit test-integration coverage lint format docs models health docker-up docker-down eval eval-baseline install clean
+.PHONY: help install dev test test-unit test-integration coverage lint format docs models health docker-up docker-down eval eval-compare eval-full clean
 
 # Default target: show help
 help:

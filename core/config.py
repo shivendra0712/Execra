@@ -4,13 +4,20 @@ All modules should import settings from here instead of using os.getenv() direct
 """
 
 import os
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
 # Load .env file at module import time
 load_dotenv()
+
+
+def parse_cors_origins(raw_origins: str) -> list[str]:
+    """
+    Parse comma-separated CORS origins from an environment variable.
+    Empty entries are ignored so trailing commas do not create invalid origins.
+    """
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
 
 @dataclass
@@ -33,6 +40,14 @@ class Settings:
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     LOG_LEVEL: str = "INFO"
+    CORS_ORIGINS: list[str] = field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ]
+    )
 
     # Redis Configuration
     REDIS_URL: str = "redis://localhost:6379"
@@ -67,6 +82,8 @@ class Settings:
             self.API_PORT = int(env_val)
         if env_val := os.getenv("LOG_LEVEL"):
             self.LOG_LEVEL = env_val
+        if env_val := os.getenv("CORS_ORIGINS"):
+            self.CORS_ORIGINS = parse_cors_origins(env_val)
 
         # Redis Configuration
         if env_val := os.getenv("REDIS_URL"):

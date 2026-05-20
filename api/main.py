@@ -3,9 +3,8 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import status, mode
-from api.routes import actions, context, plugins
-from api.websockets.router import router as ws_router
-
+from api.routes import actions, context
+from api.websockets import guidance as ws_guidance
 
 from core.config import settings
 
@@ -59,5 +58,6 @@ app.include_router(mode.router, prefix="/api/v1")
 # Action log and session context endpoints
 app.include_router(actions.router, prefix="/api/v1")
 app.include_router(context.router, prefix="/api/v1")
-app.include_router(plugins.router, prefix="/api/v1")
-app.include_router(ws_router)
+
+# WebSocket endpoints (no prefix — WS routes use the path as-is)
+app.include_router(ws_guidance.router)

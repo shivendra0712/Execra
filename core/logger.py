@@ -59,10 +59,7 @@ def setup(
 
     root.setLevel(level)
 
-    # Make sure common uvicorn loggers follow the same level
-    logging.getLogger("uvicorn.access").setLevel(level)
-    logging.getLogger("uvicorn.error").setLevel(level)
+    return logger
 
 
-def get_logger(name: str) -> logging.Logger:
-    return logging.getLogger(name)
+logger = setup_logger()
